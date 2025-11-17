@@ -2,8 +2,10 @@ import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./components/Login";
 import QuranSection from "./components/QuranSection";
-import UniversityLibrary from "./components/Library";
+import Library from "./components/Library"; // Department Library
+import UniversityLibrary from "./components/UniversityLibrary"; // ✅ New University Library Component
 import Navbar from "./components/Navbar";
+
 import "./App.css";
 
 export default function App() {
@@ -38,7 +40,11 @@ export default function App() {
           <main className="main-wrap">
             <Routes>
               <Route path="/quran" element={<QuranSection darkMode={theme === "dark"} />} />
-              <Route path="/library" element={<UniversityLibrary darkMode={theme === "dark"} />} />
+              <Route path="/library" element={<Library darkMode={theme === "dark"} />} />
+              <Route
+                path="/university-library"
+                element={<UniversityLibrary theme={theme} user={user} />} // ✅ University Library route
+              />
               <Route path="/*" element={<Navigate to="/quran" replace />} />
             </Routes>
           </main>

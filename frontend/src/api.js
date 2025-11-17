@@ -1,13 +1,18 @@
 // src/api.js
-
 import axios from "axios";
 
-// 🔹 Ye automatically decide karega kis URL se connect karna hai:
+// 🔹 Auto-detect correct API base URL
+const baseURL =
+  process.env.REACT_APP_API_URL ||
+  (window.location.hostname === "localhost"
+    ? "http://localhost:5000/api"
+    : `http://${window.location.hostname}:5000/api`);
+
+console.log("📡 Using API baseURL:", baseURL);
+
 const api = axios.create({
-  baseURL:
-    window.location.hostname === "localhost"
-      ? "http://localhost:5000/api" // 💻 Local backend (jab tum laptop pe run karte ho)
-      : "https://university-library.onrender.com/api", // 🌐 Render backend (mobile / deployed)
+  baseURL,
+  timeout: 15000,
 });
 
 export default api;

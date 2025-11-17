@@ -1,3 +1,18 @@
 {
-  "Department of Computer Science-sem1": []
+  "Department of Computer Science-sem1": [
+    {
+      "title": "Introduction to ICT",
+      "filename": "1761277931210_8403.pdf",
+      "filepath": "uploads/1761277931210_8403.pdf",
+      "sizeBytes": 11768478,
+      "uploadedAt": "2025-10-24T03:52:11.424Z"
+    },
+    {
+      "title": "Programing Fundamentals",
+      "filename": "1761277981711_Programming-Fundamentals-1570222270.pdf",
+      "filepath": "uploads/1761277981711_Programming-Fundamentals-1570222270.pdf",
+      "sizeBytes": 2864632,
+      "uploadedAt": "2025-10-24T03:53:01.760Z"
+    }
+  ]
 }

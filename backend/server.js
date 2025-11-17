@@ -10,68 +10,40 @@ require("dotenv").config();
 
 const app = express();
 app.use(bodyParser.json());
+app.use(express.json());
 
-/* -------------------- 🔹 CORS -------------------- */
+/* -------------------- 🔹 CORS FIX -------------------- */
 const allowedOrigins = [
-  process.env.FRONTEND_ORIGIN || "*",
-  "https://university-library-frontend.onrender.com", // your frontend URL
-  "https://university-library.onrender.com", // backend URL
-  "http://localhost:5173",
   "http://localhost:3000",
+  "http://localhost:5173",
+  "http://192.168.10.8:3000",
+  "http://192.168.10.8:5173",
+  process.env.FRONTEND_ORIGIN,
 ];
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes("*")) {
-        callback(null, true);
-      } else {
+      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+      else {
+        console.log("❌ Blocked by CORS:", origin);
         callback(new Error("Not allowed by CORS"));
       }
     },
+    credentials: true,
   })
 );
 
-/* -------------------- 🔹 BASIC SETUP -------------------- */
+/* -------------------- 🔹 CONFIG -------------------- */
 const PORT = process.env.PORT || 5000;
 const UPLOAD_DIR = path.join(__dirname, "uploads");
-const BOOKS_DB = path.join(__dirname, "books.json");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-/* -------------------- 🔹 HELPERS -------------------- */
-const readDB = () => {
-  try {
-    if (!fs.existsSync(BOOKS_DB)) return {};
-    const raw = fs.readFileSync(BOOKS_DB, "utf8");
-    return JSON.parse(raw || "{}");
-  } catch (e) {
-    console.error("readDB error", e);
-    return {};
-  }
-};
-const writeDB = (obj) => {
-  try {
-    fs.writeFileSync(BOOKS_DB, JSON.stringify(obj, null, 2));
-  } catch (e) {
-    console.error("writeDB error", e);
-  }
-};
-
-/* -------------------- 🔹 UPLOAD CONFIG -------------------- */
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const safe = file.originalname.replace(/\s+/g, "_");
-    cb(null, `${Date.now()}_${safe}`);
-  },
-});
-const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
-app.use("/uploads", express.static(UPLOAD_DIR));
 
 /* -------------------- 🔹 EMAIL / OTP -------------------- */
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.gmail.com",
   port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 465,
-  secure: process.env.SMTP_SECURE ? process.env.SMTP_SECURE === "true" : true,
+  secure: process.env.SMTP_SECURE === "true",
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
@@ -80,78 +52,99 @@ const transporter = nodemailer.createTransport({
 
 transporter
   .verify()
-  .then(() => console.log("✅ SMTP transporter verified"))
-  .catch((err) => console.warn("⚠️ SMTP verify failed:", err?.message || err));
+  .then(() => console.log("✅ SMTP ready"))
+  .catch((err) => console.warn("⚠️ SMTP verify failed:", err.message));
 
 const otpStore = {};
-const generateAndSendOtp = async (email) => {
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  otpStore[email] = { otp, expiresAt: Date.now() + 5 * 60 * 1000 };
 
-  const mailOptions = {
-    from: `"${process.env.EMAIL_FROM_NAME || "University Portal"}" <${
-      process.env.EMAIL_FROM || process.env.SMTP_USER
-    }>`,
-    to: email,
-    subject: "Your OTP Code",
-    text: `Your OTP code is ${otp}. It will expire in 5 minutes.`,
-  };
-
-  await transporter.sendMail(mailOptions);
-};
-
-/* -------------------- 🔹 OTP ENDPOINTS -------------------- */
-app.post("/send-otp", async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ success: false, error: "Email required" });
+app.post("/api/send-otp", async (req, res) => {
   try {
-    await generateAndSendOtp(email);
-    console.log(`OTP sent to ${email}`);
-    res.json({ success: true, msg: "OTP sent" });
+    const { email } = req.body;
+    if (!email)
+      return res.status(400).json({ success: false, error: "Email required" });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore[email] = { otp, expiresAt: Date.now() + 5 * 60 * 1000 };
+
+    await transporter.sendMail({
+      from: `"E-Library" <${process.env.EMAIL_FROM || process.env.SMTP_USER}>`,
+      to: email,
+      subject: "Your OTP Code",
+      text: `Your OTP is ${otp}. It expires in 5 minutes.`,
+    });
+
+    console.log(`📧 OTP sent to ${email}: ${otp}`);
+    res.json({ success: true });
   } catch (err) {
-    console.error("Email send error:", err.message);
+    console.error("❌ OTP send error:", err);
     res.status(500).json({ success: false, error: "Failed to send OTP" });
   }
 });
 
-app.post("/verify-otp", (req, res) => {
+app.post("/api/verify-otp", (req, res) => {
   const { email, otp } = req.body;
-  if (!email || !otp) return res.status(400).json({ success: false, error: "Email & OTP required" });
   const entry = otpStore[email];
-  if (!entry) return res.json({ success: false, error: "Invalid or expired OTP" });
-  if (Date.now() > entry.expiresAt) {
-    delete otpStore[email];
+  if (!entry)
+    return res.json({ success: false, error: "Invalid or expired OTP" });
+  if (Date.now() > entry.expiresAt)
     return res.json({ success: false, error: "OTP expired" });
-  }
-  if (entry.otp !== otp) return res.json({ success: false, error: "Invalid OTP" });
+  if (entry.otp !== otp)
+    return res.json({ success: false, error: "Invalid OTP" });
   delete otpStore[email];
   res.json({ success: true });
 });
 
-/* -------------------- 🔹 BOOK ROUTES -------------------- */
-app.get("/api/books", (req, res) => res.json({ success: true, data: readDB() }));
+/* -------------------- 🔹 USER AUTH (TEMP) -------------------- */
+const users = {};
+
+app.post("/api/signup", (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password)
+    return res
+      .status(400)
+      .json({ success: false, error: "Email and password required" });
+
+  if (users[email])
+    return res.status(400).json({ success: false, error: "User already exists" });
+
+  users[email] = { email, password };
+  console.log(`🆕 New user registered: ${email}`);
+  res.json({ success: true, message: "Signup successful" });
+});
+
+app.post("/api/login", (req, res) => {
+  const { email, password } = req.body;
+  const user = users[email];
+  if (!user)
+    return res.status(400).json({ success: false, error: "User not found" });
+  if (user.password !== password)
+    return res.status(400).json({ success: false, error: "Invalid credentials" });
+  res.json({ success: true, message: "Login successful" });
+});
+
+/* -------------------- 🔹 FILE UPLOAD -------------------- */
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  filename: (req, file, cb) => {
+    const safeName = file.originalname.replace(/\s+/g, "_");
+    cb(null, `${Date.now()}_${safeName}`);
+  },
+});
+const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
+
+app.use("/uploads", express.static(UPLOAD_DIR));
 
 app.post("/api/upload", upload.single("file"), (req, res) => {
-  const { department, semester, title } = req.body;
-  if (!department || !semester || !title || !req.file)
-    return res.status(400).json({ success: false, error: "All fields required" });
-
-  const db = readDB();
-  const key = `${department}-sem${semester}`;
-  const entry = {
-    title,
-    filename: req.file.filename,
-    url: `/uploads/${req.file.filename}`,
-    uploadedAt: new Date().toISOString(),
-  };
-  db[key] = db[key] ? [...db[key], entry] : [entry];
-  writeDB(db);
-  res.json({ success: true, data: entry });
+  if (!req.file)
+    return res.status(400).json({ success: false, error: "File required" });
+  res.json({ success: true, filename: req.file.filename });
 });
 
 /* -------------------- 🔹 HEALTH CHECK -------------------- */
-app.get("/", (req, res) => res.send("✅ Backend is live and running."));
+app.get("/", (req, res) => res.send("✅ University Library backend is live"));
 app.get("/api/ping", (req, res) => res.json({ success: true, time: Date.now() }));
 
 /* -------------------- 🔹 START SERVER -------------------- */
-app.listen(PORT, "0.0.0.0", () => console.log(`✅ Server running on port ${PORT}`));
+app.listen(PORT, "0.0.0.0", () =>
+  console.log(`🚀 Server running on port ${PORT}`)
+);

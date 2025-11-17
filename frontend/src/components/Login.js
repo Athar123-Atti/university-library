@@ -1,100 +1,101 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useRef } from "react";
 
-// 🧩 Backend base URL auto-detect
 const backendURL =
   window.location.hostname === "localhost"
     ? "http://localhost:5000"
     : "https://clever-tuna.ngrok-free.app";
 
-
 export default function Login({ onLogin }) {
   const canvasRef = useRef(null);
-  // eslint-disable-next-line no-unused-vars
-  const cardCanvasRef = useRef(null);
-
-  const [mode, setMode] = useState("login"); // login | signup | verify
+  const [mode, setMode] = useState("login");
   const [signup, setSignup] = useState({ username: "", email: "", password: "" });
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
-  // eslint-disable-next-line no-unused-vars
-  const [sentOtp, setSentOtp] = useState(null);
   const [otpInput, setOtpInput] = useState("");
   const [tempUser, setTempUser] = useState(null);
   const [error, setError] = useState("");
-  const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 🌌 Background animation
+  /* 🌌 Realistic Galaxy Background */
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     let width = (canvas.width = window.innerWidth);
     let height = (canvas.height = window.innerHeight);
 
-    const stars = Array.from({ length: 200 }, () => ({
+    const stars = Array.from({ length: 250 }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
-      r: Math.random() * 1.5 + 0.2,
-      dx: (Math.random() - 0.5) * 0.3,
-      dy: (Math.random() - 0.5) * 0.3,
+      size: Math.random() * 1.8,
       alpha: Math.random(),
-      dAlpha: Math.random() * 0.02,
+      twinkle: Math.random() * 0.02 + 0.005,
     }));
 
     const shootingStars = [];
+
     const createShootingStar = () => {
-      if (Math.random() < 0.05) {
+      if (Math.random() < 0.03) {
         shootingStars.push({
           x: Math.random() * width,
-          y: (Math.random() * height) / 2,
-          length: Math.random() * 150 + 100,
-          speed: Math.random() * 12 + 12,
-          angle: Math.random() * 0.3 + 0.7,
+          y: Math.random() * height * 0.5,
+          len: Math.random() * 80 + 100,
+          speed: Math.random() * 10 + 12,
+          angle: Math.random() * 0.5 - 0.25,
+          alpha: 1,
         });
       }
     };
 
-    const draw = () => {
-      ctx.clearRect(0, 0, width, height);
-      stars.forEach((star) => {
-        star.alpha += star.dAlpha;
-        if (star.alpha > 1) star.alpha = 1;
-        if (star.alpha < 0) star.alpha = 0;
-        star.x += star.dx;
-        star.y += star.dy;
-        if (star.x < 0 || star.x > width) star.dx *= -1;
-        if (star.y < 0 || star.y > height) star.dy *= -1;
+    function drawNebula() {
+      const gradient = ctx.createRadialGradient(
+        width / 2,
+        height / 2,
+        100,
+        width / 2,
+        height / 2,
+        width / 1.2
+      );
+      gradient.addColorStop(0, "rgba(50,100,255,0.25)");
+      gradient.addColorStop(0.5, "rgba(150,50,200,0.15)");
+      gradient.addColorStop(1, "rgba(10,10,20,0.8)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+    }
 
+    function animate() {
+      ctx.clearRect(0, 0, width, height);
+      drawNebula();
+
+      // Stars
+      stars.forEach((s) => {
+        s.alpha += s.twinkle * (Math.random() < 0.5 ? -1 : 1);
+        if (s.alpha < 0.2) s.alpha = 0.2;
+        if (s.alpha > 1) s.alpha = 1;
         ctx.beginPath();
-        ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${star.alpha})`;
-        ctx.shadowColor = "white";
-        ctx.shadowBlur = 10;
+        ctx.fillStyle = `rgba(255,255,255,${s.alpha})`;
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
         ctx.fill();
       });
 
-      shootingStars.forEach((s, i) => {
-        ctx.beginPath();
-        ctx.moveTo(s.x, s.y);
-        ctx.lineTo(
-          s.x - s.length * Math.cos(s.angle),
-          s.y - s.length * Math.sin(s.angle)
-        );
-        ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      // Shooting stars
+      shootingStars.forEach((ss, i) => {
+        ctx.strokeStyle = `rgba(255,255,255,${ss.alpha})`;
         ctx.lineWidth = 2;
-        ctx.shadowBlur = 25;
-        ctx.shadowColor = "white";
+        ctx.beginPath();
+        ctx.moveTo(ss.x, ss.y);
+        ctx.lineTo(ss.x - ss.len, ss.y + ss.len * ss.angle);
         ctx.stroke();
-
-        s.x += s.speed * Math.cos(s.angle);
-        s.y += s.speed * Math.sin(s.angle);
-        if (s.x > width || s.y > height) shootingStars.splice(i, 1);
+        ss.x += ss.speed;
+        ss.y -= ss.speed * ss.angle;
+        ss.alpha -= 0.02;
+        if (ss.alpha <= 0) shootingStars.splice(i, 1);
       });
 
       createShootingStar();
-      requestAnimationFrame(draw);
-    };
+      requestAnimationFrame(animate);
+    }
+    animate();
 
-    draw();
     const handleResize = () => {
       width = canvas.width = window.innerWidth;
       height = canvas.height = window.innerHeight;
@@ -103,18 +104,21 @@ export default function Login({ onLogin }) {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // 📨 Signup → Send OTP
+  /* 📨 Signup → Send OTP */
   const handleSignup = async (e) => {
     e.preventDefault();
     setError("");
-    setMsg("");
-    if (!signup.username || !signup.email || !signup.password) {
-      setError("Please fill username, email and password.");
-      return;
-    }
+    if (!signup.username || !signup.email || !signup.password)
+      return setError("Please fill all fields.");
+
+    // Email validation
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(signup.email))
+      return setError("Invalid email format. Please check your email.");
+
     try {
       setLoading(true);
-      const res = await fetch(`${backendURL}/send-otp`, {
+      const res = await fetch(`${backendURL}/api/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: signup.email }),
@@ -123,26 +127,22 @@ export default function Login({ onLogin }) {
       setLoading(false);
       if (data.success) {
         setTempUser(signup);
-       
         setMode("verify");
-      } else {
-        setError(data.error || "Failed to send OTP.");
-      }
+      } else setError(data.error || "Failed to send OTP.");
     } catch (err) {
+      console.error("Signup error:", err);
       setLoading(false);
-      setError("Server not running or mobile can't reach backend.");
+      setError("Server not reachable. Check backend or URL.");
     }
   };
 
-  // ✅ Verify OTP
+  /* ✅ Verify OTP */
   const handleVerify = async (e) => {
     e.preventDefault();
     setError("");
-    setMsg("");
-    if (!tempUser) return setError("No signup in progress.");
     try {
       setLoading(true);
-      const res = await fetch(`${backendURL}/verify-otp`, {
+      const res = await fetch(`${backendURL}/api/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: tempUser.email, otp: otpInput }),
@@ -154,16 +154,15 @@ export default function Login({ onLogin }) {
         users.push({ ...tempUser });
         localStorage.setItem("users", JSON.stringify(users));
         onLogin({ username: tempUser.username, email: tempUser.email });
-      } else {
-        setError(data.error || "Invalid OTP");
-      }
-    } catch {
+      } else setError(data.error || "Invalid OTP");
+    } catch (err) {
+      console.error("Verify error:", err);
       setLoading(false);
-      setError("Verification failed. Check backend connection.");
+      setError("Verification failed. Server not reachable.");
     }
   };
 
-  // 🔐 Login
+  /* 🔐 Local Login */
   const handleLogin = (e) => {
     e.preventDefault();
     setError("");
@@ -175,74 +174,115 @@ export default function Login({ onLogin }) {
     onLogin({ username: found.username, email: found.email });
   };
 
-  // 🌟 UI same as before
   return (
     <div
       style={{
         minHeight: "100vh",
         position: "relative",
         overflow: "hidden",
-        background: "linear-gradient(180deg,#050505,#0f2027)",
+        background: "black",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
+        fontFamily: "'Poppins', sans-serif",
       }}
     >
-      <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }} />
-
-      <div
-        className="login-card"
+      <canvas
+        ref={canvasRef}
         style={{
-          position: "relative",
-          zIndex: 1,
-          width: 370,
-          borderRadius: 25,
-          padding: "45px 35px",
-          backdropFilter: "blur(20px)",
-          background: "rgba(255,255,255,0.05)",
-          boxShadow: "0 0 30px rgba(47,128,237,0.6),0 10px 40px rgba(0,0,0,0.5)",
-          color: "#fff",
-          textAlign: "center",
-          fontFamily: "'Segoe UI', sans-serif",
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          zIndex: 0,
         }}
-      >
-        <h2 style={{ marginBottom: 30, fontWeight: 700, fontSize: 26, color: "#2f80ed" }}>
-          {mode === "login" ? "Login" : mode === "signup" ? "Sign Up" : "Verify OTP"}
+      />
+
+      <div style={cardStyle}>
+        <h2 style={headingStyle}>
+          {mode === "login"
+            ? "Welcome Back ✨"
+            : mode === "signup"
+            ? "Create Account 🚀"
+            : "Verify OTP 🔐"}
         </h2>
 
         {mode === "login" && (
           <form onSubmit={handleLogin}>
-            <input placeholder="Email" value={loginForm.email} onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} style={neonInputStyle} />
-            <input type="password" placeholder="Password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} style={neonInputStyle} />
-            {error && <div style={{ color: "red", marginBottom: 8 }}>{error}</div>}
-            <button style={neonButtonStyle} type="submit">Login</button>
-            <div style={{ marginTop: 12, fontSize: 13 }}>
-              New user? <button style={linkStyle} onClick={() => { setMode("signup"); setError(""); }}>Sign up</button>
-            </div>
+            <input
+              placeholder="Email"
+              value={loginForm.email}
+              onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+              style={inputStyle}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={loginForm.password}
+              onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+              style={inputStyle}
+            />
+            {error && <div style={{ color: "tomato", marginBottom: 10 }}>{error}</div>}
+            <button style={buttonStyle} type="submit">
+              Login
+            </button>
+            <p style={{ marginTop: 15, fontSize: 13 }}>
+              New here?{" "}
+              <button style={linkStyle} onClick={() => setMode("signup")}>
+                Sign Up
+              </button>
+            </p>
           </form>
         )}
 
         {mode === "signup" && (
           <form onSubmit={handleSignup}>
-            <input placeholder="Username" value={signup.username} onChange={(e) => setSignup({ ...signup, username: e.target.value })} style={neonInputStyle} />
-            <input placeholder="Email" value={signup.email} onChange={(e) => setSignup({ ...signup, email: e.target.value })} style={neonInputStyle} />
-            <input type="password" placeholder="Password" value={signup.password} onChange={(e) => setSignup({ ...signup, password: e.target.value })} style={neonInputStyle} />
-            {error && <div style={{ color: "red", marginBottom: 8 }}>{error}</div>}
-            {msg && <div style={{ color: "lightgreen", marginBottom: 8 }}>{msg}</div>}
-            <button style={neonButtonStyle} type="submit">{loading ? "Sending..." : "Send OTP"}</button>
-            <div style={{ marginTop: 12, fontSize: 13 }}>
-              Already registered? <button style={linkStyle} onClick={() => { setMode("login"); setError(""); }}>Login</button>
-            </div>
+            <input
+              placeholder="Username"
+              value={signup.username}
+              onChange={(e) => setSignup({ ...signup, username: e.target.value })}
+              style={inputStyle}
+            />
+            <input
+              placeholder="Email"
+              value={signup.email}
+              onChange={(e) => setSignup({ ...signup, email: e.target.value })}
+              style={inputStyle}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={signup.password}
+              onChange={(e) => setSignup({ ...signup, password: e.target.value })}
+              style={inputStyle}
+            />
+            {error && <div style={{ color: "tomato", marginBottom: 10 }}>{error}</div>}
+            <button style={buttonStyle} type="submit">
+              {loading ? "Sending..." : "Send OTP"}
+            </button>
+            <p style={{ marginTop: 15, fontSize: 13 }}>
+              Already have an account?{" "}
+              <button style={linkStyle} onClick={() => setMode("login")}>
+                Login
+              </button>
+            </p>
           </form>
         )}
 
         {mode === "verify" && (
           <form onSubmit={handleVerify}>
-            <div style={{ marginBottom: 8 }}>OTP generated — check email.</div>
-            <input placeholder="Enter OTP" value={otpInput} onChange={(e) => setOtpInput(e.target.value)} style={neonInputStyle} />
-            {error && <div style={{ color: "red", marginBottom: 8 }}>{error}</div>}
-            {msg && <div style={{ color: "lightgreen", marginBottom: 8 }}>{msg}</div>}
-            <button style={neonButtonStyle} type="submit">{loading ? "Verifying..." : "Verify & Register"}</button>
+            <p style={{ marginBottom: 10 }}>Check your email for OTP 📩</p>
+            <input
+              placeholder="Enter OTP"
+              value={otpInput}
+              onChange={(e) => setOtpInput(e.target.value)}
+              style={inputStyle}
+            />
+            {error && <div style={{ color: "tomato", marginBottom: 10 }}>{error}</div>}
+            <button style={buttonStyle} type="submit">
+              {loading ? "Verifying..." : "Verify & Register"}
+            </button>
           </form>
         )}
       </div>
@@ -250,40 +290,60 @@ export default function Login({ onLogin }) {
   );
 }
 
-const neonInputStyle = {
+/* 🎨 Styles */
+const cardStyle = {
+  position: "relative",
+  zIndex: 2,
+  width: 390,
+  padding: "50px 40px",
+  borderRadius: 25,
+  backdropFilter: "blur(25px)",
+  background: "rgba(255,255,255,0.05)",
+  boxShadow: "0 0 60px rgba(100,150,255,0.35), inset 0 0 40px rgba(255,255,255,0.08)",
+  color: "#fff",
+  textAlign: "center",
+};
+
+const headingStyle = {
+  marginBottom: 25,
+  fontWeight: 700,
+  fontSize: 28,
+  color: "#87CEFA",
+  textShadow: "0 0 25px rgba(135,206,250,0.8)",
+};
+
+const inputStyle = {
   width: "100%",
   padding: 14,
   marginBottom: 18,
   borderRadius: 12,
-  border: "none",
+  border: "1px solid rgba(255,255,255,0.15)",
   outline: "none",
-  background: "rgba(255,255,255,0.05)",
+  background: "rgba(255,255,255,0.1)",
   color: "#fff",
   fontSize: 15,
   fontWeight: 500,
-  boxShadow: "0 0 10px rgba(47,128,237,0.6), inset 0 0 6px rgba(47,128,237,0.3)",
-  transition: "0.3s all",
-  textShadow: "0 0 8px #2f80ed",
+  boxShadow: "inset 0 0 10px rgba(135,206,250,0.25)",
 };
 
-const neonButtonStyle = {
+const buttonStyle = {
   width: "100%",
   padding: 14,
   borderRadius: 14,
-  background: "#2f80ed",
+  background: "linear-gradient(90deg,#5DADE2,#2E86C1,#1B4F72)",
   color: "#fff",
   border: 0,
   fontWeight: 700,
   fontSize: 16,
   cursor: "pointer",
-  boxShadow: "0 0 10px #2f80ed,0 4px 15px rgba(0,0,0,0.3)",
-  transition: "0.3s all",
+  boxShadow: "0 0 25px rgba(100,150,255,0.6)",
 };
 
 const linkStyle = {
   background: "none",
   border: 0,
-  color: "#2f80ed",
+  color: "#5DADE2",
   cursor: "pointer",
   fontWeight: 600,
+  textShadow: "0 0 10px #3498DB",
 };
